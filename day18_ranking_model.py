@@ -1,4 +1,4 @@
-"""Cross-sectional stock ranking model.
+﻿"""Cross-sectional stock ranking model.
 
 This script trains a RandomForestRegressor to rank Taiwan stocks by expected
 5-day forward return. It evaluates the model with a time-based train/test split,
@@ -294,14 +294,14 @@ def print_summary(result: RankingResult, top_n: int) -> None:
 
     print("\n\u6700\u65b0\u6a21\u578b\u6392\u540d")
     print(f"\u65e5\u671f: {result.latest_date:%Y-%m-%d}")
-    for rank, (ticker, score) in enumerate(result.latest_ranking.items(), start=1):
-        tag = "top" if rank <= top_n else "bottom" if rank > len(result.latest_ranking) - top_n else "middle"
-        tag_zh = {
-            "top": "\u524d\u6bb5",
-            "middle": "\u4e2d\u6bb5",
-            "bottom": "\u5f8c\u6bb5",
-        }[tag]
-        print(f"  {rank:2d}. {ticker:<16} \u5206\u6578={score:+.5f} [{tag_zh}]")
+    print(f"\n\u524d {top_n} \u540d / \u6a21\u578b\u9810\u671f\u5831\u916c\u8f03\u9ad8")
+    for rank, (ticker, score) in enumerate(result.latest_ranking.head(top_n).items(), start=1):
+        print(f"  {rank:2d}. {ticker:<16} \u5206\u6578={score:+.5f} [\u524d\u6bb5]")
+
+    print(f"\n\u5f8c {top_n} \u540d / \u6a21\u578b\u9810\u671f\u5831\u916c\u8f03\u4f4e")
+    bottom_ranking = result.latest_ranking.tail(top_n).sort_values(ascending=True)
+    for rank, (ticker, score) in enumerate(bottom_ranking.items(), start=1):
+        print(f"  {rank:2d}. {ticker:<16} \u5206\u6578={score:+.5f} [\u5f8c\u6bb5]")
 
 
 def create_figure(result: RankingResult) -> plt.Figure:
