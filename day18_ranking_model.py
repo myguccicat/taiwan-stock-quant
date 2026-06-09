@@ -31,23 +31,8 @@ TEST_SIZE = 0.2
 TOP_N = 5
 RANDOM_STATE = 42
 
-STOCKS = {
-    "2330.TW": "\u53f0\u7a4d\u96fb",
-    "2317.TW": "\u9d3b\u6d77",
-    "2454.TW": "\u806f\u767c\u79d1",
-    "2308.TW": "\u53f0\u9054\u96fb",
-    "2382.TW": "\u5ee3\u9054",
-    "2303.TW": "\u806f\u96fb",
-    "2412.TW": "\u4e2d\u83ef\u96fb",
-    "2882.TW": "\u570b\u6cf0\u91d1",
-    "1301.TW": "\u53f0\u5851",
-    "2357.TW": "\u83ef\u78a9",
-    "2886.TW": "\u5146\u8c50\u91d1",
-    "3711.TW": "\u65e5\u6708\u5149\u6295\u63a7",
-    "2002.TW": "\u4e2d\u92fc",
-    "2881.TW": "\u5bcc\u90a6\u91d1",
-    "2301.TW": "\u5149\u5bf6\u79d1",
-}
+from watchlist import ALL_STOCKS
+STOCKS = ALL_STOCKS
 
 FEATURE_COLUMNS = [
     "r1",
@@ -87,7 +72,7 @@ def configure_yfinance_cache(cache_dir: Path) -> None:
 
 def download_market_data(symbols: list[str], period: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Download close and volume data for all symbols."""
-    raw = yf.download(symbols, period=period, progress=False, auto_adjust=False)
+    raw = yf.download(symbols, period=period, progress=False, auto_adjust=True)
 
     if raw.empty:
         raise ValueError("No market data downloaded")
