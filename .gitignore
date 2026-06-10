@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .yfinance_cache/
+config.py
+daily_log.txt
+today_signal.txt
+ML_BACKTEAT_1.jfif
