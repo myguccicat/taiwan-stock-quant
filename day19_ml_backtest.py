@@ -60,20 +60,7 @@ prices, volumes = prices.align(volumes[prices.columns], join="inner")
 names   = list(prices.columns)
 print(f"可用股票：{len(names)} 檔，{len(prices)} 個交易日")
 
-# 下載大盤過濾用資料（台灣加權指數）
-print("下載大盤資料...")
-twii = yf.download("^TWII", period=PERIOD, progress=False, auto_adjust=True)["Close"]
-twii_ma20 = twii.rolling(20).mean()
-# 大盤過濾條件：加權指數在 MA20 之上才允許做多
-def market_ok(date):
-    try:
-        idx = twii.index.get_indexer([date], method="ffill")[0]
-        if idx < 0: return True
-        return float(twii.iloc[idx]) > float(twii_ma20.iloc[idx])
-    except:
-        return True
-
-# ── 2. 建立特徵面板 ───────────────────────────
+# ── 2. 建立特徵面板 ──────────────────────────
 print("建立特徵資料集...")
 frames = []
 for name in names:
@@ -103,7 +90,6 @@ test = test.copy()
 test["pred"] = model.predict(test[FEATURES])
 
 # ── 6. 模擬換倉邏輯 ───────────────────────────
-# 每 REBAL 天換倉一次，做多預測分數前 TOP_N 名
 rebal_dates = [d for i, d in enumerate(sorted(test.index.unique())) if i % REBAL == 0]
 
 portfolio_returns = []
@@ -111,20 +97,6 @@ prev_holdings     = []
 
 for i, date in enumerate(rebal_dates[:-1]):
     next_date = rebal_dates[i + 1]
-
-    # 大盤過濾：指數低於 MA20 時空手
-    if not market_ok(date):
-        selected = []  # 空手
-        avg_ret  = 0.0
-        cost     = 0.0
-        net_ret  = 0.0
-        portfolio_returns.append({
-            "date": date, "return": net_ret,
-            "gross": avg_ret, "cost": cost,
-            "holdings": [], "market_filter": True,
-        })
-        prev_holdings = []
-        continue
 
     # 當天選股
     day_data = test.loc[date].sort_values("pred", ascending=False)
@@ -153,7 +125,6 @@ for i, date in enumerate(rebal_dates[:-1]):
         "gross":    avg_ret,
         "cost":     cost,
         "holdings": selected,
-        "market_filter": False,
     })
     prev_holdings = selected
 
@@ -175,18 +146,21 @@ for i, date in enumerate(rebal_dates[:-1]):
 bm = pd.DataFrame(bm_rets).set_index("date")
 
 # ── 8. 績效指標 ───────────────────────────────
+# 💡 核心修正：強制讓基準 bm 的索引與策略 res 完全對齊，並用 ffill 補值
+bm_aligned = bm["return"].reindex(res.index).ffill().fillna(0.0)
+
 ml_cum  = (1 + res["return"]).cumprod() - 1
-bm_cum  = (1 + bm["return"]).cumprod() - 1
+bm_cum  = (1 + bm_aligned).cumprod() - 1
 
 ml_annual  = (1 + res["return"].mean()) ** (252 / REBAL) - 1
-bm_annual  = (1 + bm["return"].mean()) ** (252 / REBAL) - 1
+bm_annual  = (1 + bm_aligned.mean()) ** (252 / REBAL) - 1
 ml_sharpe  = res["return"].mean() / res["return"].std() * np.sqrt(252 / REBAL)
 ml_maxdd   = ((ml_cum + 1) / (ml_cum + 1).cummax() - 1).min()
 win_rate   = (res["return"] > 0).mean()
-beat_bm    = (res["return"] > bm["return"]).mean()
 
-filter_days = res["market_filter"].sum() if "market_filter" in res.columns else 0
-print(f"║ 大盤過濾空手次數：{filter_days:>4} 次")
+# 💡 這裡改成與對齊後的 bm_aligned 做比較，保證絕不報錯！
+beat_bm    = (res["return"] > bm_aligned).mean()
+
 print(f"""
 ╔══════════════════════════════════════════╗
 ║        ML 選股策略回測結果               ║
@@ -276,6 +250,7 @@ ax4.grid(alpha=0.3)
 plt.tight_layout()
 import os
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "day19_ml_backtest.png")
+
 plt.savefig(out, dpi=150, bbox_inches="tight")
 plt.show()
 print(f"\n圖表已存檔：{out}")
