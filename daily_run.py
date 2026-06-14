@@ -142,21 +142,18 @@ def main():
     lines.append(f"  分析股票：{len(names)} 檔")
     lines.append(f"{'='*48}")
 
-    if mkt_ok:
-        lines.append(f"\n  【模型看多 — 前5名】")
-        for i, (_, row) in enumerate(top5.iterrows(), 1):
-            name = row["stock"]
-            chg  = today_chg.get(name, float("nan"))
-            chg_str = f"今日 {chg:+.2f}%" if not pd.isna(chg) else ""
-            lines.append(f"  {i}. {name:<12} 分數:{row['score']:+.5f}  {chg_str}")
-        lines.append(f"\n  【模型看空 — 後5名】")
-        for i, (_, row) in enumerate(bot5.iterrows(), 1):
-            name = row["stock"]
-            chg  = today_chg.get(name, float("nan"))
-            chg_str = f"今日 {chg:+.2f}%" if not pd.isna(chg) else ""
-            lines.append(f"  {i}. {name:<12} 分數:{row['score']:+.5f}  {chg_str}")
-    else:
-        lines.append(f"\n  ⚠ 大盤過濾觸發，建議今日空手觀望")
+    lines.append(f"\n  【模型看多 — 前5名】")
+    for i, (_, row) in enumerate(top5.iterrows(), 1):
+        name = row["stock"]
+        chg  = today_chg.get(name, float("nan"))
+        chg_str = f"今日 {chg:+.2f}%" if not pd.isna(chg) else ""
+        lines.append(f"  {i}. {name:<12} 分數:{row['score']:+.5f}  {chg_str}")
+    lines.append(f"\n  【模型看空 — 後5名】")
+    for i, (_, row) in enumerate(bot5.iterrows(), 1):
+        name = row["stock"]
+        chg  = today_chg.get(name, float("nan"))
+        chg_str = f"今日 {chg:+.2f}%" if not pd.isna(chg) else ""
+        lines.append(f"  {i}. {name:<12} 分數:{row['score']:+.5f}  {chg_str}")
 
     lines.append(f"\n{'='*48}")
     report = "\n".join(lines)
