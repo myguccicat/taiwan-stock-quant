@@ -9,3 +9,8 @@ requirements_full.txt
 stock/
 day27_real_trading_log_*.md
 predictions_*.csv
+sj-trading/
+shioaji.log
+.vscode/
+watchlist_backup_*.py
+t.pytype*

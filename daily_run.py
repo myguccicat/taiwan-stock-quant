@@ -1,5 +1,6 @@
 # daily_run.py — 每日自動執行腳本
 
+
 import os
 import sys
 import yfinance as yf
@@ -59,8 +60,8 @@ def main():
     try:
         raw     = yf.download(list(ALL_STOCKS.keys()),
                                period="1y", progress=False, auto_adjust=True)
-        prices  = raw["Close"].rename(columns=ALL_STOCKS).ffill().dropna(axis=1, thresh=50)
-        volumes = raw["Volume"].rename(columns=ALL_STOCKS).ffill()
+        prices  = raw.xs("Close",  axis=1, level=0).rename(columns=ALL_STOCKS).ffill().dropna(axis=1, thresh=50)
+        volumes = raw.xs("Volume", axis=1, level=0).rename(columns=ALL_STOCKS).ffill()
         prices, volumes = prices.align(volumes[prices.columns], join="inner")
         names = list(prices.columns)
         log(f"下載完成：{len(names)} 檔，{len(prices)} 個交易日")
@@ -106,8 +107,9 @@ def main():
 
     # ── 5. 大盤過濾檢查 ───────────────────────
     try:
-        twii     = yf.download("^TWII", period="3mo",
-                                progress=False, auto_adjust=True)["Close"]
+        twii_raw = yf.download("^TWII", period="3mo",
+                    progress=False, auto_adjust=True)
+        twii = twii_raw.xs("Close", axis=1, level=0).squeeze()
         twii_ma  = twii.rolling(20).mean()
         mkt_ok   = float(twii.iloc[-1]) > float(twii_ma.iloc[-1])
         mkt_val  = float(twii.iloc[-1])
@@ -122,7 +124,8 @@ def main():
     # ── 6. 今日各股漲跌 ───────────────────────
     try:
         raw2 = yf.download(list(ALL_STOCKS.keys()),
-                            period="2d", progress=False, auto_adjust=True)["Close"]
+                    period="2d", progress=False, auto_adjust=True)
+        raw2 = raw2.xs("Close", axis=1, level=0)
         raw2.columns = [ALL_STOCKS.get(c, c) for c in raw2.columns]
         raw2 = raw2.dropna(axis=1)
         if len(raw2) >= 2:
