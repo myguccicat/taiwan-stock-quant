@@ -1,8 +1,8 @@
 # daily_run.py — 每日自動執行腳本
 
-
 import os
 import sys
+import re
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -51,9 +51,79 @@ def build_features(price, volume):
 FEATURES = ["r1","r5","r20","ma5_ratio","ma20_ratio","ma60_ratio",
             "vol_ratio","vol_5d","rsi14","bb_pos","near_high"]
 
+def sync_holdings_from_sinopac():
+    """從永豐金 API 同步庫存，只更新 watchlist.py 的 MY_HOLDINGS 區塊"""
+    MIN_STOCKS = 5
+    OTC_CODES = {
+        "3317","6643","8277","3131","8027","7556",
+        "4971","3105","6953","3680"
+    }
+
+    def to_yf_code(code):
+        return f"{code}.TWO" if code in OTC_CODES else f"{code}.TW"
+
+    # 從 sj-trading 資料夾讀取 config
+    sj_path = r"C:\Users\user\Desktop\sj-trading"
+    sys.path.insert(0, sj_path)
+    from config import SHIOAJI_API_KEY, SHIOAJI_SECRET_KEY
+    import shioaji as sj
+
+    api = sj.Shioaji(simulation=False)
+    api.login(api_key=SHIOAJI_API_KEY, secret_key=SHIOAJI_SECRET_KEY)
+
+    positions = api.list_positions(api.stock_account, unit=sj.constant.Unit.Share)
+    new_holdings = {}
+    for pos in positions:
+        yf_code = to_yf_code(pos.code)
+        try:
+            contract = api.Contracts.Stocks[pos.code]
+            name = contract.name if contract else pos.code
+        except:
+            name = pos.code
+        new_holdings[yf_code] = name
+
+    api.logout()
+
+    if len(new_holdings) < MIN_STOCKS:
+        raise ValueError(f"抓到 {len(new_holdings)} 檔，低於最低門檻 {MIN_STOCKS} 檔，不覆蓋")
+
+    # 更新 watchlist.py 的 MY_HOLDINGS 區塊
+    watchlist_path = os.path.join(BASE_DIR, "watchlist.py")
+    original = open(watchlist_path, encoding="utf-8").read()
+
+    holdings_lines = ["MY_HOLDINGS = {\n"]
+    for code, name in sorted(new_holdings.items()):
+        otc = "  # OTC" if ".TWO" in code else ""
+        holdings_lines.append(f'    "{code}":  "{name}",{otc}\n')
+    holdings_lines.append("}\n")
+    new_block = "".join(holdings_lines)
+
+    pattern = r"MY_HOLDINGS = \{[^}]*\}\n"
+    if not re.search(pattern, original, re.DOTALL):
+        raise ValueError("找不到 MY_HOLDINGS 區塊，請確認 watchlist.py 格式")
+
+    new_content = re.sub(pattern, new_block, original, flags=re.DOTALL)
+    open(watchlist_path, "w", encoding="utf-8").write(new_content)
+
+    return len(new_holdings)
+
 def main():
     today = date.today()
     log(f"===== 每日自動執行開始 {today} =====")
+
+    # ── 0. 同步永豐金庫存 ─────────────────────────
+    log("嘗試同步永豐金庫存...")
+    try:
+        n = sync_holdings_from_sinopac()
+        # 重新載入更新後的 watchlist
+        import importlib
+        import watchlist as wl
+        importlib.reload(wl)
+        from watchlist import ALL_STOCKS as ALL_STOCKS_NEW
+        globals()["ALL_STOCKS"] = ALL_STOCKS_NEW
+        log(f"庫存同步完成：{n} 檔現股")
+    except Exception as e:
+        log(f"庫存同步失敗，使用現有 watchlist：{e}")
 
     # ── 1. 下載資料 ───────────────────────────
     log("下載資料中...")
