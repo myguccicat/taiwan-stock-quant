@@ -14,3 +14,4 @@ shioaji.log
 .vscode/
 watchlist_backup_*.py
 t.pytype*
+*.md
