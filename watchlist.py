@@ -1,5 +1,5 @@
-# watchlist.py -- auto synced from SinoPac (2026-07-12)
-# MY_HOLDINGS 自動同步；MY_WATCHLIST 每週自動更新
+# watchlist.py -- auto synced from SinoPac (2026-07-16)
+# MY_HOLDINGS 自動同步；MY_WATCHLIST 請手動維護
 
 MY_HOLDINGS = {
     "00927.TW":  "群益半導體收益",
