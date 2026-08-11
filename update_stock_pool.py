@@ -19,21 +19,26 @@ WATCHLIST_PATH = Path(r"C:\Users\user\Desktop\stock\watchlist.py")
 MIN_PRICE      = 15          # 最低股價
 MAX_PRICE      = 5000        # 最高股價
 MIN_AVG_VOLUME = 5_000_000   # 近20日平均成交量（股），約5000張
+
+# 黑名單：明確排除非 AI 供應鏈股票
+BLACKLIST = {
+    "6558",  # 台塑勝高科技
+    "6505",  # 台塑石化
+    "9911",  # 台灣汽電共生
+    "2305",  # 全友電腦
+    "2332",  # 友訊科技
+}
 # ══════════════════════════════════════════
 
-# 上市股票：只保留半導體（23）和電子零組件（24）
-# 範圍刻意縮小，確保都是 AI 硬體供應鏈核心
+# 上市股票：只保留 AI 硬體供應鏈核心產業
 TWSE_TARGET = {
-    "23",  # 半導體業（台積電、聯電、旺宏、華邦電等）
-    "24",  # 電子零組件業（國巨、日月光、凱美等）
-    "25",  # 電腦及周邊設備業（廣達、英業達、緯創等）
-    "30",  # 其他電子業（欣興、南電、奇鋐等）
+    "23",  # 半導體業
+    "24",  # 電子零組件業
+    "25",  # 電腦及周邊設備業
+    "30",  # 其他電子業
 }
 
-# ══════════════════════════════════════════
 # 你的偏好自選股（來自 6/30 備份，全部保留）
-# 分類整理方便日後維護
-# ══════════════════════════════════════════
 PREFERRED_WATCHLIST = {
     # AI 伺服器供應鏈
     "2382.TW":  "廣達",
@@ -94,7 +99,6 @@ PREFERRED_WATCHLIST = {
     "8277.TWO": "商丞",
     "3131.TWO": "弘塑",
     "8027.TWO": "鈦昇",
-    "8046.TW":  "南電",
     "7556.TWO": "意德士",
     "3680.TWO": "家登",
     "3105.TWO": "穩懋",
@@ -103,16 +107,18 @@ PREFERRED_WATCHLIST = {
     "3317.TWO": "尼克森",
 
     # OTC 其他 AI 相關
-    "6230.TW": "超豐",
-    "3034.TW": "聯詠",
+    "6230.TW":  "超豐",
+    "3034.TW":  "聯詠",
     "3036.TW":  "文曄",
-    "6278.TW": "台表科",
+    "6278.TW":  "台表科",
     "3227.TWO": "原相",
     "6669.TW":  "緯穎",
 }
 
+
 def to_yf_code(code: str) -> str:
     return code if (".TW" in code or ".TWO" in code) else f"{code}.TW"
+
 
 def fetch_twse_stocks() -> pd.DataFrame:
     """從台灣證交所抓上市股票清單"""
@@ -134,6 +140,7 @@ def fetch_twse_stocks() -> pd.DataFrame:
         print(f"   ❌ 上市清單抓取失敗：{e}")
         return pd.DataFrame()
 
+
 def get_preferred_candidates() -> pd.DataFrame:
     """你的偏好自選股，直接加入不受成交量限制"""
     print("📡 載入偏好自選股清單...")
@@ -151,9 +158,9 @@ def get_preferred_candidates() -> pd.DataFrame:
     print(f"   偏好自選股：{len(df)} 檔（不受成交量限制）")
     return df
 
+
 def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
     """用 yfinance 抓股價和成交量做篩選"""
-    # 分開處理：偏好股不受成交量限制，普通候選股要過濾
     preferred = candidates[candidates["is_preferred"] == True].copy()
     normal    = candidates[candidates["is_preferred"] == False].copy()
 
@@ -170,8 +177,12 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
         code         = str(row["code"]).strip()
         is_preferred = bool(row["is_preferred"])
 
-        # 偏好股已有 yf_code，普通股需要推斷
-        if "yf_code" in row and pd.notna(row["yf_code"]):
+        # 黑名單過濾
+        if code in BLACKLIST:
+            print(f"   🚫 黑名單排除：{code} {row['name']}")
+            continue
+
+        if "yf_code" in row and pd.notna(row.get("yf_code")):
             yf_code = row["yf_code"]
         else:
             yf_code = f"{code}.TW"
@@ -193,14 +204,11 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
             last_price = float(close.iloc[-1])
             avg_vol    = float(volume.rolling(20).mean().iloc[-1])
 
-            # 股價範圍（所有股票都要檢查）
             if last_price < MIN_PRICE or last_price > MAX_PRICE:
                 if not is_preferred:
                     continue
-                # 偏好股即使超出範圍也保留，只記錄警告
                 print(f"   ⚠️ {code} 股價 {last_price:.1f} 超出範圍，但仍保留（偏好股）")
 
-            # 成交量（只有非偏好股才需要通過）
             if not is_preferred and avg_vol < MIN_AVG_VOLUME:
                 continue
 
@@ -226,6 +234,7 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
     print(f"   篩選完成：通過 {len(passed)} 檔，失敗/排除 {failed} 檔")
     return pd.DataFrame(passed)
 
+
 def read_existing_holdings() -> dict:
     try:
         import importlib.util
@@ -236,6 +245,7 @@ def read_existing_holdings() -> dict:
     except Exception as e:
         print(f"❌ 讀取 watchlist.py 失敗：{e}")
         return {}
+
 
 def update_watchlist_py(new_pool: pd.DataFrame) -> None:
     holdings = read_existing_holdings()
@@ -277,11 +287,9 @@ def update_watchlist_py(new_pool: pd.DataFrame) -> None:
     print(f"   MY_WATCHLIST：{len(new_watchlist)} 檔")
     print(f"   ALL_STOCKS  ：{len(holdings) + len(new_watchlist)} 檔")
 
-    # 顯示偏好股確認清單
     preferred_in = new_pool[new_pool["is_preferred"] == True]
-    print(f"\n✅ 偏好自選股確認（{len(preferred_in)} 檔全數保留）：")
-    for _, row in preferred_in.iterrows():
-        print(f"   {row['yf_code']:<15} {row['name']:<15} {row['price']} 元")
+    print(f"\n✅ 偏好自選股確認（{len(preferred_in)} 檔全數保留）")
+
 
 def main():
     print("=" * 55)
@@ -289,13 +297,9 @@ def main():
     print(f"  執行日期：{date.today()}")
     print("=" * 55)
 
-    # 1. 偏好自選股（直接保留）
-    preferred = get_preferred_candidates()
+    preferred  = get_preferred_candidates()
+    twse       = fetch_twse_stocks()
 
-    # 2. 上市市場篩選（補充用）
-    twse = fetch_twse_stocks()
-
-    # 合併，去除偏好股已有的代碼
     preferred_codes = set(preferred["code"].tolist())
     twse_extra = twse[~twse["code"].isin(preferred_codes)].copy()
     twse_extra["yf_code"] = twse_extra["code"].apply(lambda c: f"{c}.TW")
@@ -303,20 +307,19 @@ def main():
     candidates = pd.concat([preferred, twse_extra], ignore_index=True)
     print(f"\n   候選總數：{len(candidates)} 檔（偏好 {len(preferred)} + 市場補充 {len(twse_extra)}）")
 
-    # 3. 股價與成交量篩選
     passed = filter_by_price_volume(candidates)
 
     if passed.empty:
         print("❌ 篩選後無股票通過")
         return
 
-    # 4. 更新 watchlist.py
     print(f"\n💾 更新 watchlist.py...")
     update_watchlist_py(passed)
 
     print("\n" + "=" * 55)
     print("  完成！建議每週日執行一次")
     print("=" * 55)
+
 
 if __name__ == "__main__":
     main()
