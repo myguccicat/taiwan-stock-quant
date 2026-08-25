@@ -157,7 +157,12 @@ def sync_holdings_from_sinopac():
 
     positions    = api.list_positions(api.stock_account, unit=sj.constant.Unit.Share)
     new_holdings = {}
+    # ETF 黑名單（不進入模型候選池）
+    ETF_BLACKLIST = {"00679B", "00927"}
+
     for pos in positions:
+        if pos.code in ETF_BLACKLIST:
+            continue
         yf_code = to_yf_code(pos.code)
         try:
             contract = api.Contracts.Stocks[pos.code]
