@@ -34,10 +34,10 @@ BLACKLIST = {
 
 # 上市股票：只保留 AI 硬體供應鏈核心產業
 TWSE_TARGET = {
-    "23",  # 半導體業
-    "24",  # 電子零組件業
-    "25",  # 電腦及周邊設備業
-    "30",  # 其他電子業
+    "24",  # 半導體業
+    "25",  # 電腦及週邊設備業
+    "28",  # 電子零組件業
+    "31",  # 其他電子業
 }
 
 # 你的偏好自選股（來自 6/30 備份，全部保留）
@@ -172,6 +172,8 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
 
     passed = []
     failed = 0
+    failed_detail = []   # 每筆完整明細，寫進 CSV 用
+    error_summary = {}   # 錯誤類型 -> 次數，主控台只印這個，避免洗版
 
     all_candidates = pd.concat([preferred, normal], ignore_index=True)
 
@@ -194,6 +196,8 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
                              progress=False, auto_adjust=True)
             if df.empty:
                 failed += 1
+                failed_detail.append((code, row["name"], "empty_dataframe"))
+                error_summary["empty_dataframe"] = error_summary.get("empty_dataframe", 0) + 1
                 continue
 
             if hasattr(df.columns, "levels"):
@@ -208,10 +212,18 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
 
             if last_price < MIN_PRICE or last_price > MAX_PRICE:
                 if not is_preferred:
+                    failed += 1
+                    reason = f"price_out_of_range:{last_price:.1f}"
+                    failed_detail.append((code, row["name"], reason))
+                    error_summary["price_out_of_range"] = error_summary.get("price_out_of_range", 0) + 1
                     continue
                 print(f"   ⚠️ {code} 股價 {last_price:.1f} 超出範圍，但仍保留（偏好股）")
 
             if not is_preferred and avg_vol < MIN_AVG_VOLUME:
+                failed += 1
+                reason = f"volume_too_low:{avg_vol/1_000_000:.2f}M"
+                failed_detail.append((code, row["name"], reason))
+                error_summary["volume_too_low"] = error_summary.get("volume_too_low", 0) + 1
                 continue
 
             passed.append({
@@ -227,13 +239,31 @@ def filter_by_price_volume(candidates: pd.DataFrame) -> pd.DataFrame:
             if len(passed) % 20 == 0:
                 print(f"   已通過：{len(passed)} 檔...")
 
-        except Exception:
+        except Exception as e:
             failed += 1
+            err_type = type(e).__name__
+            failed_detail.append((code, row["name"], f"{err_type}: {e}"))
+            error_summary[err_type] = error_summary.get(err_type, 0) + 1
             continue
 
         time.sleep(0.05)
 
     print(f"   篩選完成：通過 {len(passed)} 檔，失敗/排除 {failed} 檔")
+
+    # 主控台只印分類統計，不洗版
+    if error_summary:
+        print(f"\n   失敗原因統計：")
+        for err_type, count in sorted(error_summary.items(), key=lambda x: -x[1]):
+            print(f"      {err_type}: {count} 檔")
+
+    # 完整明細寫進 log 檔，需要細查某檔時再打開
+    if failed_detail:
+        log_path = WATCHLIST_PATH.with_name(f"filter_failed_{date.today()}.csv")
+        pd.DataFrame(failed_detail, columns=["code", "name", "reason"]).to_csv(
+            log_path, index=False, encoding="utf-8-sig"
+        )
+        print(f"   完整失敗明細已寫入：{log_path.name}")
+
     return pd.DataFrame(passed)
 
 
