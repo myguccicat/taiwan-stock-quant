@@ -177,31 +177,48 @@ def load_or_download_market_data(
     這樣才能保證同一次分析（甚至跨腳本、跨執行時間）用的是同一批資料，
     「視窗2」這種名稱才有意義，不會因為重新下載而悄悄變成不同的日期區間或股票池。
 
-    refresh=True 會強制重新下載並覆蓋快取。symbols 若跟快取裡記錄的不一致
-    （例如 watchlist.py 後來被更新過），只會印警告，不會自動刷新——
-    是否要用最新股票池重跑，交給使用者用 --refresh-cache 自己決定。
+    refresh=True 會強制重新下載並覆蓋快取。
+
+    symbols 若跟快取裡記錄的不一致（例如 watchlist.py 後來被更新過），只會印警告，
+    不會自動刷新——是否要用最新股票池重跑，交給使用者用 --refresh-cache 自己決定，
+    因為股票清單變動通常還是「同一段歷史，只是成分股不同」，繼續用舊快取不會產生
+    誤導性的結果，只是不夠新。
+
+    period 若跟快取裡記錄的不一致，行為不一樣：**會自動視同需要重新下載**，
+    不會靜默沿用舊快取。原因是 period 差異是正確性問題，不只是新舊問題——
+    如果快取是用 period="3y" 建的，使用者卻要求 period="5y"，繼續回傳舊快取
+    等於悄悄少給了2年歷史，而且完全沒有任何提示，這比股票清單過舊嚴重得多。
     """
     if not refresh and cache_path.exists():
         with open(cache_path, "rb") as f:
             cache = pickle.load(f)
-        print(
-            f"讀取資料快取：{cache_path.name}"
-            f"（下載於 {cache['downloaded_at']}，"
-            f"涵蓋 {len(cache['prices'].columns)} 檔股票、{len(cache['prices'])} 個交易日）"
-        )
-        cached_symbols  = set(cache["symbols"])
-        current_symbols = set(symbols)
-        if cached_symbols != current_symbols:
-            added   = sorted(current_symbols - cached_symbols)
-            removed = sorted(cached_symbols - current_symbols)
-            print("⚠️ 目前 watchlist.py 的股票清單跟快取不一致：")
-            if added:
-                print(f"　新增：{added}")
-            if removed:
-                print(f"　移除：{removed}")
-            print("　（這次分析仍會用快取裡的舊資料，確保跟其他腳本的結果可以互相比較；"
-                  "如果要反映最新股票池，請加 --refresh-cache 重新下載）")
-        return cache["prices"], cache["volumes"]
+
+        cached_period = cache.get("period")
+        if cached_period != period:
+            print(
+                f"⚠️ 快取（{cache_path.name}）是用 period={cached_period!r} 下載的，"
+                f"跟這次要求的 period={period!r} 不同——快取涵蓋的歷史長度可能不夠，"
+                f"視同快取未命中，重新下載..."
+            )
+        else:
+            print(
+                f"讀取資料快取：{cache_path.name}"
+                f"（下載於 {cache['downloaded_at']}，"
+                f"涵蓋 {len(cache['prices'].columns)} 檔股票、{len(cache['prices'])} 個交易日）"
+            )
+            cached_symbols  = set(cache["symbols"])
+            current_symbols = set(symbols)
+            if cached_symbols != current_symbols:
+                added   = sorted(current_symbols - cached_symbols)
+                removed = sorted(cached_symbols - current_symbols)
+                print("⚠️ 目前 watchlist.py 的股票清單跟快取不一致：")
+                if added:
+                    print(f"　新增：{added}")
+                if removed:
+                    print(f"　移除：{removed}")
+                print("　（這次分析仍會用快取裡的舊資料，確保跟其他腳本的結果可以互相比較；"
+                      "如果要反映最新股票池，請加 --refresh-cache 重新下載）")
+            return cache["prices"], cache["volumes"]
 
     print("（快取不存在或要求強制更新，重新下載...）" if not cache_path.exists() or refresh else "")
     prices, volumes = download_market_data(symbols, period)
