@@ -17,70 +17,20 @@ BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE    = os.path.join(BASE_DIR, "daily_log.txt")
 SIGNAL_FILE = os.path.join(BASE_DIR, "today_signal.txt")
 
-# ── 產業分群（day28 的 SECTOR_MAP）────────────────
-SECTOR_MAP = {
-    # 晶片設計
-    "聯發科": "晶片設計", "世芯-KY": "晶片設計", "訊芯-KY": "晶片設計",
-    "晶心科": "晶片設計", "智原": "晶片設計", "M31": "晶片設計",
-    "聯詠": "晶片設計", "原相": "晶片設計", "光寶科": "晶片設計", "所羅門": "晶片設計",
-    "凌陽科技股份有限公司": "晶片設計", "威盛電子股份有限公司": "晶片設計",
-    "新唐科技股份有限公司": "晶片設計", "晶豪科技股份有限公司": "晶片設計",
-    "盛群半導體股份有限公司": "晶片設計", "矽統科技股份有限公司": "晶片設計",
-    "迅杰科技股份有限公司": "晶片設計",
+# ── 產業分群、特徵清單：直接從 day28_sector_ranking.py 匯入 ──
+# 2026-09-21 統一：原本這裡另外複製一份 SECTOR_MAP，跟 day28 手動同步，
+# 容易兩邊漏改、悄悄分歧。day28_sector_ranking.py 的 main() 有用
+# `if __name__ == "__main__":` 包起來，import 它不會觸發下載/訓練/印面板，
+# 只會拿到 SECTOR_MAP、ALL_FEATURES 這些定義，是安全的。
+from day28_sector_ranking import SECTOR_MAP, ALL_FEATURES
 
-    # 記憶體
-    "南亞科": "記憶體", "華邦電": "記憶體", "旺宏": "記憶體",
-    "力晶積成電子製造股份有限公司": "記憶體",
-    "宇瞻科技股份有限公司": "記憶體", "創見資訊股份有限公司": "記憶體",
-
-    # 製造封測
-    "台積電": "製造封測", "日月光投控": "製造封測", "力成": "製造封測",
-    "穩懋": "製造封測", "超豐": "製造封測", "IET-KY": "製造封測",
-    "台表科": "製造封測", "全新": "製造封測",
-    "京元電子股份有限公司": "製造封測", "南茂科技股份有限公司": "製造封測",
-    "矽格股份有限公司": "製造封測", "菱生精密工業股份有限公司": "製造封測",
-    "超豐電子股份有限公司": "製造封測", "嘉晶電子股份有限公司": "製造封測",
-
-    # PCB載板
-    "南電": "PCB載板", "欣興": "PCB載板", "臻鼎-KY": "PCB載板",
-    "家登": "PCB載板", "弘塑": "PCB載板",
-    "景碩科技股份有限公司": "PCB載板", "台塑勝高科技股份有限公司": "PCB載板",
-    "福懋科技股份有限公司": "PCB載板", "同欣電子工業股份有限公司": "PCB載板",
-    "華東科技股份有限公司": "PCB載板",
-
-    # AI伺服器
-    "廣達": "AI伺服器", "英業達": "AI伺服器", "緯創": "AI伺服器",
-    "鴻海": "AI伺服器", "緯穎": "AI伺服器", "樺漢": "AI伺服器", "研華": "AI伺服器",
-    "仁寶電腦工業股份有限公司": "AI伺服器", "和碩聯合科技股份有限公司": "AI伺服器",
-    "佳世達科技股份有限公司": "AI伺服器", "神達控股股份有限公司": "AI伺服器",
-    "永擎": "AI伺服器",
-    "凌華科技股份有限公司": "AI伺服器",
-
-    # 散熱電源
-    "奇鋐": "散熱電源", "貿聯-KY": "散熱電源",
-
-    # 被動元件
-    "國巨": "被動元件", "凱美": "被動元件", "尼克森": "被動元件",
-    "富鼎先進電子股份有限公司": "被動元件", "強茂股份有限公司": "被動元件",
-    "承啟科技股份有限公司": "被動元件",
-
-    # 半導體設備
-    "志聖": "半導體設備", "中砂": "半導體設備", "家碩": "半導體設備",
-    "商丞": "半導體設備", "鈦昇": "半導體設備", "意德士": "半導體設備",
-    "事欣科技股份有限公司": "半導體設備",
-
-    # 其他電子
-    "技嘉": "其他電子", "華碩": "其他電子", "群創": "其他電子",
-    "宏達電": "其他電子", "晟銘電": "其他電子", "倉佑": "其他電子",
-    "東陽": "其他電子", "文曄": "其他電子", "慧洋-KY": "其他電子",
-    "全友電腦股份有限公司": "其他電子", "宏碁股份有限公司": "其他電子",
-    "微星科技股份有限公司": "其他電子", "聯華電子股份有限公司": "其他電子",
-    "國巨*": "其他電子", "群益半導體收益": "其他電子",
-    "台塑石化股份有限公司": "其他電子", "台灣汽電共生股份有限公司": "其他電子",
-
-    # 光電
-    "聯鈞光電股份有限公司": "光電",
-}
+# ── 對齊 day28_sector_ranking.py 的設定 ──────────
+# 原本這支腳本用 period="1y"、預測目標是 future_5d，跟 day28（3~5年資料、
+# future_3d）是兩套獨立邏輯，2026-09-21 決定統一成 day28 的邏輯，讓實際
+# 上線推播的訊號跟已經驗證過（IC、16視窗穩定性分析）的那套一致。
+DOWNLOAD_PERIOD = "5y"   # 對齊4.12節16視窗驗證用的5年基準
+FORWARD_DAYS    = 3      # 對齊day28的3日換倉週期，原本這裡是5
+FEATURES        = ALL_FEATURES  # 直接對齊day28的特徵清單，不再自己維護一份
 
 def log(msg):
     ts   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -111,7 +61,7 @@ def build_features(price, volume):
     bs = price.rolling(20).std()
     df["bb_pos"]     = (price - (bb - 2*bs)) / (4*bs + 1e-9)
     df["near_high"]  = price / price.rolling(20).max() - 1
-    df["future_5d"]  = price.pct_change(5).shift(-5)
+    df["future_3d"]  = price.pct_change(FORWARD_DAYS).shift(-FORWARD_DAYS)
     return df
 
 def add_sector_features(panel: pd.DataFrame) -> pd.DataFrame:
@@ -132,9 +82,6 @@ def add_sector_features(panel: pd.DataFrame) -> pd.DataFrame:
         results.append(day_df)
     return pd.concat(results).drop(columns=["sector"])
 
-FEATURES = ["r1","r5","r20","ma5_ratio","ma20_ratio","ma60_ratio",
-            "vol_ratio","vol_5d","rsi14","bb_pos","near_high",
-            "sector_momentum","sector_rank","inter_sector_rank"]
 
 def sync_holdings_from_sinopac():
     """從永豐金 API 同步庫存，只更新 watchlist.py 的 MY_HOLDINGS 區塊"""
@@ -214,7 +161,7 @@ def main():
     log("下載資料中...")
     try:
         raw     = yf.download(list(ALL_STOCKS.keys()),
-                               period="1y", progress=False, auto_adjust=True)
+                               period=DOWNLOAD_PERIOD, progress=False, auto_adjust=True)
         prices  = raw.xs("Close",  axis=1, level=0).rename(columns=ALL_STOCKS).ffill().dropna(axis=1, thresh=50)
         volumes = raw.xs("Volume", axis=1, level=0).rename(columns=ALL_STOCKS).ffill()
         prices, volumes = prices.align(volumes[prices.columns], join="inner")
@@ -228,7 +175,7 @@ def main():
     frames = []
     for name in names:
         f = build_features(prices[name], volumes[name])
-        f["future_5d"] = prices[name].pct_change(5).shift(-5)
+        f["future_3d"] = prices[name].pct_change(FORWARD_DAYS).shift(-FORWARD_DAYS)
         f["stock"] = name
         frames.append(f)
     panel = pd.concat(frames)
@@ -239,7 +186,7 @@ def main():
     panel_tech = panel[panel[tech_cols[:-1]].notna().all(axis=1)].copy()
     panel_with_sector = add_sector_features(panel_tech)
 
-    train = panel_with_sector.dropna(subset=FEATURES + ["future_5d"])
+    train = panel_with_sector.dropna(subset=FEATURES + ["future_3d"])
     log(f"訓練樣本：{len(train)} 筆")
 
     # ── 3. 訓練模型 ───────────────────────────────
@@ -248,7 +195,7 @@ def main():
         n_estimators=300, max_depth=6,
         min_samples_leaf=20, random_state=42, n_jobs=-1
     )
-    model.fit(train[FEATURES], train["future_5d"])
+    model.fit(train[FEATURES], train["future_3d"])
 
     # ── 4. 產生今日訊號 ───────────────────────────
     latest_date = panel_with_sector.dropna(subset=FEATURES).index.max()

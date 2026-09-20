@@ -10,6 +10,13 @@
 #   造成 IC 幾乎是雜訊（+0.0029）但累積報酬卻誇張到 +1000%+ 的矛盾。
 #   修正後累積報酬只用每 FORWARD_DAYS 天一次的不重疊樣本計算，IC 不受影響
 #   （IC 本來就是逐日橫斷面排名相關性，跟複利無關）。
+#
+# 2026-09-21 修正：決策面板改用「全部歷史資料」重新訓練的模型，不再沿用
+#   評估用（只訓練到train_dates最後一天）的模型。原本決策面板印出的
+#   「今天該買什麼」，用的模型可能只看過半年前為止的資料，等於用過時的
+#   市況在判斷現在——評估用模型繼續只用train集（這是正確的，為了模擬
+#   「當初只看得到訓練期資料」的公平測試），但決策面板需要的是看過最新
+#   資訊的模型，兩者用途不同、不能共用。詳見 run_pipeline()。
 
 from __future__ import annotations
 import argparse
@@ -582,13 +589,25 @@ def run_pipeline(period: str, cache_path: Path = DEFAULT_CACHE_PATH, refresh_cac
     print(f"測試：{test.index.get_level_values('Date').min().date()} ～ "
           f"{test.index.get_level_values('Date').max().date()}")
 
-    print("訓練模型...")
+    print("訓練模型（評估用，只用訓練集，用來算IC/超額報酬）...")
     model = train_model(train)
 
     preds  = model.predict(test[ALL_FEATURES])
     daily  = evaluate(test, preds)
     imp    = pd.Series(model.feature_importances_, index=ALL_FEATURES).sort_values(ascending=False)
-    latest_date, ranking = predict_latest(model, panel)
+
+    # 2026-09-21 修正：決策面板不能沿用上面那個評估用模型 —— 它只看過
+    # train_dates 最後一天為止的資料（例如訓練到3月，但拿它去預測9月的
+    # 「今天該買什麼」，等於用半年前的市況判斷現在），評估用途沒問題
+    # （模擬「當初只看得到訓練期資料」的公平測試），但拿來當真正的選股
+    # 依據會誤導。決策面板改用另一個在「全部歷史資料」上重新訓練的模型，
+    # 確保今天印出的排名，是模型看過最新資訊之後給出的判斷。
+    print("訓練模型（決策面板用，使用全部歷史資料）...")
+    full_clean = panel.dropna(subset=ALL_FEATURES + ["future_3d"])
+    print(f"決策面板模型訓練資料：{full_clean.index.get_level_values('Date').min().date()} ～ "
+          f"{full_clean.index.get_level_values('Date').max().date()}（全部歷史，非上面的評估用train集）")
+    production_model = train_model(full_clean)
+    latest_date, ranking = predict_latest(production_model, panel)
 
     # 把預測值留在 test_data 上，供 top_pick_frequency() 之類的診斷使用
     test_scored = test.copy()
